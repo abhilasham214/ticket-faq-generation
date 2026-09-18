@@ -3,6 +3,7 @@ export interface Faq {
   answer: string;
   resolution_steps: string[];
   escalation: string;
+  gemini_generated: boolean;
 }
 
 export interface TicketSummary {
@@ -16,6 +17,7 @@ export interface Cluster {
   cluster_id: number;
   theme: string;
   ai_named: boolean;
+  is_new_domain: boolean;
   discovered_keywords: string[];
   ticket_count: number;
   keywords: string[];

@@ -16,6 +16,11 @@ duplicate/invalid cluster_index, missing fields on any entry - falls back to
 a deterministic template built only from each cluster's own tickets, for
 every cluster in the batch. The app never crashes or 500s because of a bad/
 unavailable Gemini response.
+
+Every returned FAQ dict carries a `gemini_generated` flag (True from a real
+parsed response, False from `template_fallback`) so the caller/UI can show
+when a batch quietly degraded to templates instead of it looking identical
+to a normal Gemini-drafted result.
 """
 
 import json
@@ -122,6 +127,7 @@ def _validate_faq_fields(data: Dict[str, Any]) -> Dict[str, Any]:
         "answer": str(data["answer"]).strip(),
         "resolution_steps": resolution_steps,
         "escalation": str(data.get("escalation") or "").strip(),
+        "gemini_generated": True,
     }
 
 
@@ -186,6 +192,7 @@ def template_fallback(
         "answer": answer,
         "resolution_steps": resolutions[:5],
         "escalation": "",
+        "gemini_generated": False,
     }
 
 

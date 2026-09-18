@@ -37,6 +37,15 @@ export function ClusterCard({ cluster }: ClusterCardProps) {
                 AI-named
               </Badge>
             )}
+            {cluster.is_new_domain && !cluster.ai_named && (
+              <Badge
+                variant="destructive"
+                className="shrink-0 text-xs"
+                title="This theme doesn't match any curated category, and Gemini wasn't available to name it - this is a generic fallback name, not a reviewed category."
+              >
+                Gemini unavailable
+              </Badge>
+            )}
           </div>
           <Badge variant="secondary" className="shrink-0 text-sm font-semibold">
             {cluster.ticket_count} tickets
@@ -56,7 +65,18 @@ export function ClusterCard({ cluster }: ClusterCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div>
-          <p className="text-sm font-medium">{cluster.faq.question}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-sm font-medium">{cluster.faq.question}</p>
+            {!cluster.faq.gemini_generated && (
+              <Badge
+                variant="destructive"
+                className="shrink-0 text-xs"
+                title="Gemini wasn't available when this was generated, so this FAQ is a template built directly from the ticket resolutions below, not a Gemini-drafted summary."
+              >
+                Templated
+              </Badge>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">{cluster.faq.answer}</p>
         </div>
 

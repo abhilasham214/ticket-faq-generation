@@ -34,6 +34,39 @@ def test_generate_faqs_from_sample_csv_produces_five_clean_themes(client, sample
         assert cluster["faq"]["answer"]
         assert isinstance(cluster["faq"]["resolution_steps"], list)
         assert "/" not in cluster["theme"]
+        # No GEMINI_API_KEY in this test env - every curated cluster's theme
+        # and FAQ must be flagged as the deterministic fallback, not silently
+        # look identical to a real Gemini-drafted result.
+        assert cluster["is_new_domain"] is False
+        assert cluster["ai_named"] is False
+        assert cluster["faq"]["gemini_generated"] is False
+
+
+def test_uncategorized_theme_is_flagged_as_new_domain(client, new_domain_csv_bytes):
+    """A cluster that matches none of the 5 curated domains must be flagged
+    is_new_domain=True regardless of whether Gemini successfully named it -
+    that's what lets the UI distinguish "new theme, Gemini named it" from
+    "new theme, Gemini was unavailable" instead of the latter looking like
+    an ordinary curated match."""
+    res = client.post(
+        "/api/faqs/generate",
+        files={"file": ("new_domain.csv", new_domain_csv_bytes, "text/csv")},
+    )
+    assert res.status_code == 200
+    body = res.json()
+
+    new_domain_clusters = [c for c in body["clusters"] if c["is_new_domain"]]
+    assert len(new_domain_clusters) == 1
+    assert new_domain_clusters[0]["ticket_count"] == 4
+    # No GEMINI_API_KEY in this test env, so it can't have been AI-named.
+    assert new_domain_clusters[0]["ai_named"] is False
+
+    curated_clusters = [c for c in body["clusters"] if not c["is_new_domain"]]
+    assert len(curated_clusters) == 2
+    assert {c["theme"] for c in curated_clusters} == {
+        "Password Reset & Account Recovery",
+        "Billing & Duplicate Charge Issues",
+    }
 
 
 def test_generate_from_sample_endpoint_matches_uploading_the_same_csv(client):

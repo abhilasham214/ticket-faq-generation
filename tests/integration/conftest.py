@@ -29,3 +29,10 @@ def sample_csv_bytes():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     with open(os.path.join(root, "data", "sample_tickets.csv"), "rb") as f:
         return f.read()
+
+
+@pytest.fixture()
+def new_domain_csv_bytes():
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(root, "data", "sample_tickets_new_domain.csv"), "rb") as f:
+        return f.read()

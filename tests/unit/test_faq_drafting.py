@@ -140,6 +140,16 @@ def test_draft_makes_exactly_one_gemini_call_for_the_whole_batch():
     assert client.models.generate_content.call_count == 1
 
 
+def test_parsed_response_is_flagged_gemini_generated():
+    result = parse_faqs_response(json.dumps(_valid_batch_payload()), expected_count=2)
+    assert all(entry["gemini_generated"] is True for entry in result)
+
+
+def test_template_fallback_is_flagged_not_gemini_generated():
+    result = template_fallback(THEME_A, CLUSTER_A, TICKETS_A)
+    assert result["gemini_generated"] is False
+
+
 def test_draft_retries_once_then_falls_back_to_templates_for_every_cluster():
     client = _fake_client("not json at all")
     result = draft_faqs_for_clusters(ENTRIES, client=client, max_attempts=2)

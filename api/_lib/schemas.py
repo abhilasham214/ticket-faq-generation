@@ -8,6 +8,7 @@ class FaqOut(BaseModel):
     answer: str
     resolution_steps: List[str]
     escalation: str
+    gemini_generated: bool
 
 
 class TicketSummary(BaseModel):
@@ -21,6 +22,7 @@ class ClusterOut(BaseModel):
     cluster_id: int
     theme: str
     ai_named: bool
+    is_new_domain: bool
     discovered_keywords: List[str] = Field(default_factory=list)
     ticket_count: int
     keywords: List[str]

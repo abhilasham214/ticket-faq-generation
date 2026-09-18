@@ -68,8 +68,13 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
         # recurring theme rather than one of the 5 taxonomy categories - ask
         # Gemini to name it instead of showing the generic "Recurring Issue:
         # <term>" fallback. Any failure (no key, network error, malformed
-        # response) leaves `theme` as the deterministic fallback untouched.
-        if not has_curated_match(cluster["keywords"], categories=categories):
+        # response) leaves `theme` as the deterministic fallback untouched -
+        # `is_new_domain` stays true either way, so the UI can distinguish
+        # "genuinely new theme, Gemini named it" from "genuinely new theme,
+        # Gemini was unavailable so this is just the fallback name" instead
+        # of the latter silently looking like an ordinary curated match.
+        is_new_domain = not has_curated_match(cluster["keywords"], categories=categories)
+        if is_new_domain:
             discovered = discover_category(cluster["keywords"], member_tickets)
             if discovered:
                 theme = discovered["label"]
@@ -80,6 +85,7 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
             {
                 "theme": theme,
                 "ai_named": ai_named,
+                "is_new_domain": is_new_domain,
                 "discovered_keywords": discovered_keywords,
                 "cluster": cluster,
                 "tickets": member_tickets,
@@ -99,6 +105,7 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
                 cluster_id=i + 1,
                 theme=entry["theme"],
                 ai_named=entry["ai_named"],
+                is_new_domain=entry["is_new_domain"],
                 discovered_keywords=entry["discovered_keywords"],
                 ticket_count=cluster["ticket_count"],
                 keywords=cluster["keywords"],
@@ -117,6 +124,7 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
                     answer=faq["answer"],
                     resolution_steps=faq["resolution_steps"],
                     escalation=faq["escalation"],
+                    gemini_generated=faq["gemini_generated"],
                 ),
             )
         )

@@ -7,10 +7,14 @@ import pytest
 def client():
     """FastAPI TestClient against the real app. No database - each request is
     self-contained, so there's no state to isolate between tests beyond
-    making sure Gemini is never actually called (draft_faq_for_cluster falls
-    back to its deterministic template when GEMINI_API_KEY is unset).
+    making sure Gemini and Vercel KV are never actually called (drafting
+    falls back to its deterministic template when GEMINI_API_KEY is unset;
+    category/ticket stores fall back to their in-request defaults when
+    KV_REST_API_URL/KV_REST_API_TOKEN are unset).
     """
     os.environ.pop("GEMINI_API_KEY", None)
+    os.environ.pop("KV_REST_API_URL", None)
+    os.environ.pop("KV_REST_API_TOKEN", None)
 
     from fastapi.testclient import TestClient
 

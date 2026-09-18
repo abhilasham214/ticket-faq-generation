@@ -3,71 +3,22 @@ KV (Upstash Redis REST API) so an "add as new domain" decision made in the
 frontend popup survives across deployments and serverless cold starts -
 unlike the rest of this app's request-scoped state (see
 docs/03-architecture.md's "no database" reasoning, which still holds for
-ticket data itself; this is the one piece of state a human explicitly
-decided should persist).
+ticket data itself; this is one of a couple of pieces of state a human
+explicitly decided should persist - see also ticket_store.py).
 
-Uses stdlib urllib against Upstash's REST command endpoint instead of an
-added HTTP client dependency - one small JSON request either way, and it
-keeps the serverless function's cold-start footprint unchanged.
-
-Requires KV_REST_API_URL and KV_REST_API_TOKEN (auto-injected by Vercel once
-a KV store is attached to the project; see .env.example for local dev).
+Shares its KV REST client with ticket_store.py via kv_store.py.
 """
 
 import json
-import os
-import urllib.request
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
+
+from .kv_store import KVStoreError, kv_command
 
 CUSTOM_CATEGORIES_KEY = "ticket_faq:custom_categories"
 
-_REQUEST_TIMEOUT_SECONDS = 5
-
-
-class CategoryStoreError(RuntimeError):
-    pass
-
-
-def _kv_config() -> Optional[Tuple[str, str]]:
-    url = os.environ.get("KV_REST_API_URL")
-    token = os.environ.get("KV_REST_API_TOKEN")
-    if not url or not token:
-        return None
-    return url, token
-
-
-def _kv_command(command: List[Any]) -> Any:
-    """Send one Upstash REST command (e.g. ["GET", key] or ["SET", key, value])
-    and return its `result`. Raises CategoryStoreError on any failure - no
-    config, network error, timeout, or an error field in the response.
-    """
-    config = _kv_config()
-    if config is None:
-        raise CategoryStoreError("KV_REST_API_URL / KV_REST_API_TOKEN are not configured.")
-    url, token = config
-
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(command).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_SECONDS) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except (OSError, ValueError) as exc:
-        # OSError covers urllib.error.URLError/HTTPError and raw socket/timeout
-        # errors alike; ValueError covers a non-JSON response body.
-        raise CategoryStoreError(f"KV request failed: {exc}") from exc
-
-    if not isinstance(body, dict):
-        raise CategoryStoreError("Unexpected KV response shape.")
-    if body.get("error"):
-        raise CategoryStoreError(f"KV error: {body['error']}")
-    return body.get("result")
+# Re-exported so existing callers/tests can keep importing CategoryStoreError
+# from this module without needing to know it's shared with ticket_store.py.
+CategoryStoreError = KVStoreError
 
 
 def _slugify(label: str) -> str:
@@ -84,7 +35,7 @@ def list_custom_categories() -> List[Dict[str, Any]]:
     the normal case, not an error, so this never raises.
     """
     try:
-        raw = _kv_command(["GET", CUSTOM_CATEGORIES_KEY])
+        raw = kv_command(["GET", CUSTOM_CATEGORIES_KEY])
     except CategoryStoreError:
         return []
     if not raw:
@@ -114,5 +65,5 @@ def add_custom_category(label: str, keywords: List[str]) -> Dict[str, Any]:
     entry = {"id": category_id, "label": label, "keywords": clean_keywords}
 
     updated = existing + [entry]
-    _kv_command(["SET", CUSTOM_CATEGORIES_KEY, json.dumps(updated)])
+    kv_command(["SET", CUSTOM_CATEGORIES_KEY, json.dumps(updated)])
     return entry

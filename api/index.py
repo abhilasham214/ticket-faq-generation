@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +19,7 @@ from ._lib.schemas import (
     HealthResponse,
     TicketSummary,
 )
+from ._lib.ticket_store import get_seeded_tickets
 
 app = FastAPI(title="Ticket FAQ Auto Builder API")
 
@@ -35,17 +36,11 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.post("/api/faqs/generate", response_model=GenerateResponse)
-async def generate_faqs(file: UploadFile = File(...)) -> GenerateResponse:
-    if not (file.filename or "").lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
-
-    content = await file.read()
-    try:
-        tickets = parse_tickets_csv(content)
-    except CsvValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
+def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateResponse:
+    """The full parse-to-FAQs pipeline, shared by the CSV-upload endpoint and
+    the sample-data endpoint below - the only difference between them is
+    where `tickets` comes from.
+    """
     # User-approved custom categories (see POST /api/categories) get the same
     # tag-bridging boost and curated naming as the 5 built-in domains, so a
     # theme only needs Gemini's help the first time it shows up.
@@ -120,6 +115,35 @@ async def generate_faqs(file: UploadFile = File(...)) -> GenerateResponse:
         )
 
     return GenerateResponse(clusters=result, total_tickets=len(tickets))
+
+
+@app.post("/api/faqs/generate", response_model=GenerateResponse)
+async def generate_faqs(file: UploadFile = File(...)) -> GenerateResponse:
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
+
+    content = await file.read()
+    try:
+        tickets = parse_tickets_csv(content)
+    except CsvValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _generate_response_for_tickets(tickets)
+
+
+@app.post("/api/faqs/generate/sample", response_model=GenerateResponse)
+def generate_faqs_from_sample() -> GenerateResponse:
+    """Run the exact same pipeline as POST /api/faqs/generate, but sourced
+    from a small seeded demo ticket set instead of an uploaded CSV, so the
+    app has something to show on first load without requiring a file first.
+    The seed set is persisted in Vercel KV (ticket_store.py) after its first
+    read, falling back to the bundled data/sample_tickets.csv either way.
+    """
+    tickets = get_seeded_tickets()
+    if not tickets:
+        raise HTTPException(status_code=503, detail="No sample tickets are available right now.")
+
+    return _generate_response_for_tickets(tickets)
 
 
 @app.post("/api/categories", response_model=CategoryOut, status_code=201)

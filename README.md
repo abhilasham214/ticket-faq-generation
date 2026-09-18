@@ -8,7 +8,7 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 
 - **Frontend**: Next.js (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI, deployed as a Vercel Python serverless function (`api/index.py`)
-- **Storage**: none - stateless. One request in (a CSV), one response out (clusters + FAQs); nothing is persisted server-side.
+- **Storage**: none for ticket data - stateless. One request in (a CSV), one response out (clusters + FAQs); nothing is persisted server-side. Two narrow exceptions live in Vercel KV: user-approved custom categories, and a seeded demo ticket set for the "Try sample data" button (see `docs/03-architecture.md`).
 - **Clustering**: TF-IDF + cosine similarity via scikit-learn's agglomerative clustering (average linkage, fixed distance threshold - no chosen cluster count), boosted by a small curated support-domain keyword taxonomy so same-topic tickets with different wording still group together
 - **Cluster naming**: deterministic, rule-based (same domain taxonomy) - no LLM
 - **FAQ drafting**: Gemini (`google-genai`), a single batched call for all clusters in one generate request, with a deterministic template fallback - the only place an LLM is used

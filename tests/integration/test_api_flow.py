@@ -36,6 +36,19 @@ def test_generate_faqs_from_sample_csv_produces_five_clean_themes(client, sample
         assert "/" not in cluster["theme"]
 
 
+def test_generate_from_sample_endpoint_matches_uploading_the_same_csv(client):
+    """POST /api/faqs/generate/sample needs no file - it should produce the
+    same 5-theme, 20-ticket result as uploading data/sample_tickets.csv
+    directly, since that's the bundled fallback ticket_store.py seeds from."""
+    res = client.post("/api/faqs/generate/sample")
+    assert res.status_code == 200
+    body = res.json()
+
+    assert body["total_tickets"] == 20
+    assert len(body["clusters"]) == 5
+    assert sum(c["ticket_count"] for c in body["clusters"]) == 20
+
+
 def test_every_cluster_traces_back_to_its_source_tickets(client, sample_csv_bytes):
     res = client.post(
         "/api/faqs/generate",

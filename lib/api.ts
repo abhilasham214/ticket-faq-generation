@@ -69,6 +69,15 @@ export async function generateFaqs(file: File): Promise<GenerateResponse> {
   return res.json();
 }
 
+export async function generateFaqsFromSample(): Promise<GenerateResponse> {
+  const res = await fetch("/api/faqs/generate/sample", { method: "POST" });
+
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorDetail(res));
+  }
+  return res.json();
+}
+
 export async function addCustomCategory(label: string, keywords: string[]): Promise<Category> {
   const res = await fetch("/api/categories", {
     method: "POST",

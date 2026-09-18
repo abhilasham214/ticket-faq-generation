@@ -1,19 +1,6 @@
 from typing import List
 
-from pydantic import BaseModel, ConfigDict
-
-
-class TicketOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    external_id: str
-    subject: str
-
-
-class UploadResponse(BaseModel):
-    ticket_count: int
-    preview: List[TicketOut]
+from pydantic import BaseModel
 
 
 class FaqOut(BaseModel):
@@ -37,7 +24,6 @@ class GenerateResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    db: str
 
 
 class ErrorResponse(BaseModel):

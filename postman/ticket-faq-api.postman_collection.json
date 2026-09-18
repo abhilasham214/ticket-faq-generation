@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ticket FAQ Auto Builder API",
-    "description": "Functional, negative, and edge-case coverage for the Knowledge Base FAQ Auto Builder API. Run the 'Generate FAQs - empty DB (negative)' request first against a fresh database (before any upload) since it asserts the zero-ticket error path; the rest of the collection can then be run top to bottom, or via the Collection Runner / newman.",
+    "description": "Functional, negative, and edge-case coverage for the Knowledge Base FAQ Auto Builder API. There is no server-side state between requests, so every request in this collection is independent and can be run in any order (individually, top to bottom, or via the Collection Runner / newman).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -23,70 +23,7 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
-                  "pm.test('status field is ok or degraded', () => pm.expect(['ok', 'degraded']).to.include(body.status));",
-                  "pm.test('db field present', () => pm.expect(body).to.have.property('db'));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Faqs - negative (run before any upload)",
-      "item": [
-        {
-          "name": "POST /api/faqs/generate - empty DB",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] },
-            "description": "Requires a fresh/empty ticket table. Run this before any Upload Tickets request in the collection."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('never a 500', () => pm.expect(pm.response.code).to.not.eql(500));",
-                  "pm.test('handled 4xx for empty ticket table', () => pm.expect(pm.response.code).to.be.within(400, 499));",
-                  "pm.test('error detail explains the cause', () => pm.expect(pm.response.json().detail).to.match(/ticket/i));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Upload Tickets",
-      "item": [
-        {
-          "name": "POST /api/tickets/upload - valid CSV (functional)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "file", "type": "file", "src": "data/sample_tickets.csv" }
-              ]
-            },
-            "url": { "raw": "{{baseUrl}}/api/tickets/upload", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "upload"] },
-            "description": "In the Postman GUI, re-select data/sample_tickets.csv for the 'file' field (Postman requires re-attaching local files for security). Via newman, run from the repo root so the relative src resolves."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test('ticket_count is 20', () => pm.expect(body.ticket_count).to.eql(20));",
-                  "pm.test('preview has up to 5 rows', () => pm.expect(body.preview.length).to.be.at.most(5));",
-                  "pm.environment.set('lastTicketCount', body.ticket_count);"
+                  "pm.test('status is ok', () => pm.expect(body.status).to.eql('ok'));"
                 ]
               }
             }
@@ -98,12 +35,18 @@
       "name": "Generate FAQs",
       "item": [
         {
-          "name": "POST /api/faqs/generate - functional",
+          "name": "POST /api/faqs/generate - valid CSV (functional)",
           "request": {
             "method": "POST",
             "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "data/sample_tickets.csv" }
+              ]
+            },
             "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] },
-            "description": "Run after 'Upload Tickets - valid CSV' so total_tickets is 20 and clustering has enough signal to land in [3,5]."
+            "description": "In the Postman GUI, re-select data/sample_tickets.csv for the 'file' field (Postman requires re-attaching local files for security). Via newman, run from the repo root so the relative src resolves."
           },
           "event": [
             {
@@ -113,22 +56,18 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
+                  "pm.test('total_tickets is 20', () => pm.expect(body.total_tickets).to.eql(20));",
                   "pm.test('3 to 5 clusters', () => pm.expect(body.clusters.length).to.be.within(3, 5));",
                   "pm.test('cluster counts sum to total', () => {",
                   "  const sum = body.clusters.reduce((acc, c) => acc + c.ticket_count, 0);",
                   "  pm.expect(sum).to.eql(body.total_tickets);",
-                  "});",
-                  "pm.test('total_tickets matches last upload', () => {",
-                  "  const last = pm.environment.get('lastTicketCount');",
-                  "  if (last) pm.expect(body.total_tickets).to.eql(parseInt(last, 10));",
                   "});",
                   "pm.test('every cluster has a grounded FAQ', () => {",
                   "  body.clusters.forEach((c) => {",
                   "    pm.expect(c.faq.question).to.be.a('string').and.not.empty;",
                   "    pm.expect(c.faq.answer).to.be.a('string').and.not.empty;",
                   "  });",
-                  "});",
-                  "pm.environment.set('lastGeneratedTotal', body.total_tickets);"
+                  "});"
                 ]
               }
             }
@@ -137,41 +76,10 @@
       ]
     },
     {
-      "name": "Get FAQs",
+      "name": "Generate FAQs - negative & edge cases",
       "item": [
         {
-          "name": "GET /api/faqs - matches last generate",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/api/faqs", "host": ["{{baseUrl}}"], "path": ["api", "faqs"] }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "const body = pm.response.json();",
-                  "pm.test('total_tickets matches the last generate call', () => {",
-                  "  const expected = pm.environment.get('lastGeneratedTotal');",
-                  "  if (expected) pm.expect(body.total_tickets).to.eql(parseInt(expected, 10));",
-                  "});",
-                  "pm.test('clusters is a non-empty array', () => pm.expect(body.clusters.length).to.be.greaterThan(0));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Upload Tickets - negative & edge cases",
-      "description": "Runs after the main functional chain so it doesn't disturb the ticket batch that Generate/Get FAQs asserted against.",
-      "item": [
-        {
-          "name": "POST /api/tickets/upload - non-CSV file (negative)",
+          "name": "POST /api/faqs/generate - non-CSV file (negative)",
           "request": {
             "method": "POST",
             "header": [
@@ -181,7 +89,7 @@
               "mode": "raw",
               "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"tickets.txt\"\r\nContent-Type: text/plain\r\n\r\nnot a csv file\r\n------WebKitFormBoundaryABC123--\r\n"
             },
-            "url": { "raw": "{{baseUrl}}/api/tickets/upload", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "upload"] }
+            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] }
           },
           "event": [
             {
@@ -197,7 +105,7 @@
           ]
         },
         {
-          "name": "POST /api/tickets/upload - missing required columns (negative)",
+          "name": "POST /api/faqs/generate - missing required columns (negative)",
           "request": {
             "method": "POST",
             "header": [
@@ -207,7 +115,7 @@
               "mode": "raw",
               "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"bad.csv\"\r\nContent-Type: text/csv\r\n\r\nsubject,description\r\nA,B\r\n------WebKitFormBoundaryABC123--\r\n"
             },
-            "url": { "raw": "{{baseUrl}}/api/tickets/upload", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "upload"] }
+            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] }
           },
           "event": [
             {
@@ -223,7 +131,7 @@
           ]
         },
         {
-          "name": "POST /api/tickets/upload - extra unrecognized columns (edge)",
+          "name": "POST /api/faqs/generate - no usable rows (negative)",
           "request": {
             "method": "POST",
             "header": [
@@ -231,9 +139,36 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"extra.csv\"\r\nContent-Type: text/csv\r\n\r\nsubject,description,resolution,priority\r\nCannot log in,Password rejected,Reset session,high\r\n------WebKitFormBoundaryABC123--\r\n"
+              "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"empty.csv\"\r\nContent-Type: text/csv\r\n\r\nsubject,description,resolution\r\n------WebKitFormBoundaryABC123--\r\n"
             },
-            "url": { "raw": "{{baseUrl}}/api/tickets/upload", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "upload"] }
+            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] },
+            "description": "A valid header with zero data rows - never a 500, always a handled 4xx."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('never a 500', () => pm.expect(pm.response.code).to.not.eql(500));",
+                  "pm.test('handled 4xx for no usable rows', () => pm.expect(pm.response.code).to.be.within(400, 499));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/faqs/generate - extra unrecognized columns (edge)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data; boundary=----WebKitFormBoundaryABC123" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"extra.csv\"\r\nContent-Type: text/csv\r\n\r\nsubject,description,resolution,priority\r\nCannot log in,Password rejected,Reset session,high\r\nBilled twice,Duplicate charge,Refunded charge,low\r\n------WebKitFormBoundaryABC123--\r\n"
+            },
+            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] }
           },
           "event": [
             {
@@ -242,14 +177,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 200 despite unknown column', () => pm.response.to.have.status(200));",
-                  "pm.test('ticket_count is 1', () => pm.expect(pm.response.json().ticket_count).to.eql(1));"
+                  "pm.test('total_tickets is 2', () => pm.expect(pm.response.json().total_tickets).to.eql(2));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST /api/tickets/upload - duplicate + minimal rows (edge)",
+          "name": "POST /api/faqs/generate - duplicate + minimal rows (edge)",
           "request": {
             "method": "POST",
             "header": [
@@ -259,8 +194,8 @@
               "mode": "raw",
               "raw": "------WebKitFormBoundaryABC123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"dupes.csv\"\r\nContent-Type: text/csv\r\n\r\nsubject,description,resolution\r\nCannot log in,Password rejected,Reset session\r\nCannot log in,Password rejected,Reset session\r\n------WebKitFormBoundaryABC123--\r\n"
             },
-            "url": { "raw": "{{baseUrl}}/api/tickets/upload", "host": ["{{baseUrl}}"], "path": ["api", "tickets", "upload"] },
-            "description": "Also exercises clustering's lower bound: a follow-up generate call would only have 2 tickets, below the usual 3-5 theme range."
+            "url": { "raw": "{{baseUrl}}/api/faqs/generate", "host": ["{{baseUrl}}"], "path": ["api", "faqs", "generate"] },
+            "description": "Exercises clustering's lower bound: only 2 tickets, below the usual 3-5 theme range, must still return a handled result (a single cluster), never a 500."
           },
           "event": [
             {
@@ -269,7 +204,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('duplicate rows both counted', () => pm.expect(pm.response.json().ticket_count).to.eql(2));"
+                  "const body = pm.response.json();",
+                  "pm.test('total_tickets is 2', () => pm.expect(body.total_tickets).to.eql(2));",
+                  "pm.test('at least one cluster', () => pm.expect(body.clusters.length).to.be.at.least(1));"
                 ]
               }
             }

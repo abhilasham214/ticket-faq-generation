@@ -1,14 +1,3 @@
-export interface TicketPreview {
-  id: number;
-  external_id: string;
-  subject: string;
-}
-
-export interface UploadResponse {
-  ticket_count: number;
-  preview: TicketPreview[];
-}
-
 export interface Faq {
   question: string;
   answer: string;
@@ -48,31 +37,15 @@ async function parseErrorDetail(res: Response): Promise<string> {
   return `Request failed with status ${res.status}`;
 }
 
-export async function uploadTicketsCsv(file: File): Promise<UploadResponse> {
+export async function generateFaqs(file: File): Promise<GenerateResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch("/api/tickets/upload", {
+  const res = await fetch("/api/faqs/generate", {
     method: "POST",
     body: formData,
   });
 
-  if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorDetail(res));
-  }
-  return res.json();
-}
-
-export async function generateFaqs(): Promise<GenerateResponse> {
-  const res = await fetch("/api/faqs/generate", { method: "POST" });
-  if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorDetail(res));
-  }
-  return res.json();
-}
-
-export async function fetchFaqs(): Promise<GenerateResponse> {
-  const res = await fetch("/api/faqs", { method: "GET" });
   if (!res.ok) {
     throw new ApiError(res.status, await parseErrorDetail(res));
   }

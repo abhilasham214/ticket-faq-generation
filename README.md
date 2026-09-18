@@ -8,7 +8,7 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 
 - **Frontend**: Next.js (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI, deployed as a Vercel Python serverless function (`api/index.py`)
-- **Database**: Vercel Postgres (Neon) via SQLAlchemy
+- **Storage**: none - stateless. One request in (a CSV), one response out (clusters + FAQs); nothing is persisted server-side.
 - **Clustering**: scikit-learn (TF-IDF + KMeans, auto-picks k in [3,5] by silhouette score)
 - **FAQ drafting**: Gemini (`google-genai`), one call per cluster, with a deterministic template fallback
 
@@ -16,13 +16,13 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 
 ```
 app/                  Next.js pages (App Router)
-components/           TicketUpload, ClusterCard, shadcn/ui primitives
-lib/api.ts            Typed fetch wrappers for the backend API
-api/index.py          FastAPI app - all routes
-api/_lib/             db, models, schemas, csv_ingest, clustering, faq_drafting
+components/           FaqGenerator, ClusterCard, shadcn/ui primitives
+lib/api.ts            Typed fetch wrapper for the backend API
+api/index.py          FastAPI app - the single POST /api/faqs/generate route (+ /api/health)
+api/_lib/             schemas, csv_ingest, clustering, faq_drafting
 data/sample_tickets.csv   20 synthetic resolved tickets for the demo
 tests/unit/           Isolated module tests (Gemini mocked)
-tests/integration/    FastAPI TestClient + throwaway SQLite DB
+tests/integration/    FastAPI TestClient, full request/response cycle
 tests/api/            Black-box smoke tests against a running instance (BASE_URL)
 postman/              Postman collection + environment (functional/negative/edge)
 docs/                 Problem, requirements, architecture, process, testing write-ups
@@ -46,7 +46,7 @@ uvicorn api.index:app --reload --port 8000
 npm run dev
 ```
 
-Open http://localhost:3000. `next.config.ts` proxies `/api/*` to `http://127.0.0.1:8000` automatically when not running on Vercel. Without `POSTGRES_URL` set, the backend falls back to a local SQLite file (`local_dev.db`). Without `GEMINI_API_KEY` set, FAQ drafting falls back to a deterministic template instead of calling Gemini.
+Open http://localhost:3000. `next.config.ts` proxies `/api/*` to `http://127.0.0.1:8000` automatically when not running on Vercel. No database or extra setup is required. Without `GEMINI_API_KEY` set, FAQ drafting falls back to a deterministic template instead of calling Gemini.
 
 ### Option B - `vercel dev` (matches production routing exactly)
 
@@ -60,13 +60,12 @@ vercel dev
 
 ### First run through the app
 
-1. Open the app, upload `data/sample_tickets.csv`.
-2. Click "Generate FAQs".
-3. Confirm 3-5 theme cards appear, ticket counts sum to 20, and each FAQ answer reads as grounded in that theme's tickets (login/password, billing, API/rate-limits, data export/import, email/notifications).
+1. Open the app, choose `data/sample_tickets.csv`, click "Generate FAQs".
+2. Confirm 3-5 theme cards appear, ticket counts sum to 20, and each FAQ answer reads as grounded in that theme's tickets (login/password, billing, API/rate-limits, data export/import, email/notifications).
 
 ## Environment variables
 
-See `.env.example`. `GEMINI_API_KEY` (get one at https://aistudio.google.com/apikey) enables real FAQ drafting; `POSTGRES_URL` points at Vercel Postgres/Neon (omit for local SQLite).
+See `.env.example`. `GEMINI_API_KEY` (get one at https://aistudio.google.com/apikey) enables real FAQ drafting; without it, FAQ drafting uses a deterministic template.
 
 ## Testing
 
@@ -86,6 +85,5 @@ See `docs/05-testing.md` for the full test matrix and a log of defects actually 
 ## Deployment (Vercel)
 
 1. `vercel login` and `vercel link` to create/link the project.
-2. In the Vercel dashboard, add the **Postgres** (Neon) integration to the project - this populates `POSTGRES_URL` automatically.
-3. `vercel env add GEMINI_API_KEY` (paste your key).
-4. `vercel --prod`, or push to the connected GitHub repo's `main` branch for auto-deploy.
+2. `vercel env add GEMINI_API_KEY` (paste your key).
+3. `vercel --prod`, or push to the connected GitHub repo's `main` branch for auto-deploy.

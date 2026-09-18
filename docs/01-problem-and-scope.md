@@ -19,7 +19,7 @@ Reduce repeated support effort by turning ticket history into a lightweight, alw
 
 - Built for a fixed, short timebox (a hackathon-style build), so scope is deliberately narrow.
 - FAQ drafting depends on the Gemini free tier, which has request-rate limits — the drafting step includes a template fallback specifically so the app still works if a call fails or no key is configured.
-- Hosting is entirely on Vercel (frontend, Python API, and Postgres), which shapes the backend as serverless functions rather than a long-running server.
+- Hosting is entirely on Vercel (frontend and Python API), which shapes the backend as serverless functions rather than a long-running server. The app is stateless — no database.
 
 ## In scope for this prototype
 

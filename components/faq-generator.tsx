@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, generateFaqs, generateFaqsFromSample, type GenerateResponse } from "@/lib/api";
+import { ApiError, generateFaqs, type GenerateResponse } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,8 @@ const LOADING_STAGES = [
 export function FaqGenerator({ onGenerated }: FaqGeneratorProps) {
   const [file, setFile] = useState<File | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [loadingSample, setLoadingSample] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  const busy = generating || loadingSample;
 
   useEffect(() => {
     if (!generating) return;
@@ -52,19 +49,6 @@ export function FaqGenerator({ onGenerated }: FaqGeneratorProps) {
     }
   }
 
-  async function handleTrySample() {
-    setLoadingSample(true);
-    setError(null);
-    try {
-      const result = await generateFaqsFromSample();
-      onGenerated(result);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load sample data. Please try again.");
-    } finally {
-      setLoadingSample(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -72,14 +56,11 @@ export function FaqGenerator({ onGenerated }: FaqGeneratorProps) {
           type="file"
           accept=".csv"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          disabled={busy}
+          disabled={generating}
           className="sm:max-w-xs"
         />
-        <Button onClick={handleGenerate} disabled={!file || busy}>
+        <Button onClick={handleGenerate} disabled={!file || generating}>
           {generating ? LOADING_STAGES[stageIndex] : "Generate FAQs"}
-        </Button>
-        <Button variant="outline" onClick={handleTrySample} disabled={busy}>
-          {loadingSample ? "Loading sample..." : "Try sample data"}
         </Button>
       </div>
       {error && (

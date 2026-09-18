@@ -8,7 +8,7 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 
 - **Frontend**: Next.js (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI, deployed as a Vercel Python serverless function (`api/index.py`)
-- **Storage**: no database. Each generate call parses, clusters, and drafts in one pass. A few narrow exceptions live in Vercel KV: user-approved custom categories, a seeded demo ticket set for the "Try sample data" button, and the most recently generated result so a fresh visit shows what was last generated instead of an empty page (see `docs/03-architecture.md`).
+- **Storage**: no database. Each generate call parses, clusters, and drafts in one pass. A few narrow exceptions live in Vercel KV: user-approved custom categories, a seeded demo ticket set (`POST /api/faqs/generate/sample`), and the most recently generated result so a fresh visit shows what was last generated instead of an empty page (see `docs/03-architecture.md`).
 - **Clustering**: TF-IDF + cosine similarity via scikit-learn's agglomerative clustering (average linkage, fixed distance threshold - no chosen cluster count), boosted by a small curated support-domain keyword taxonomy so same-topic tickets with different wording still group together
 - **Cluster naming**: deterministic, rule-based (same domain taxonomy) - no LLM
 - **FAQ drafting**: Gemini (`google-genai`), a single batched call for all clusters in one generate request, with a deterministic template fallback - the only place an LLM is used

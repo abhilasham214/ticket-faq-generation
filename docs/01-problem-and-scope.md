@@ -24,8 +24,8 @@ Reduce repeated support effort by turning ticket history into a lightweight, alw
 ## In scope for this prototype
 
 - Upload a CSV of resolved tickets through the UI.
-- Cluster tickets into 3-5 recurring themes algorithmically (TF-IDF + KMeans).
-- Draft one FAQ entry (question + answer) per theme via Gemini, grounded in that theme's actual ticket resolutions.
+- Cluster tickets into recurring themes algorithmically (TF-IDF + cosine-similarity clustering, no LLM), each with a deterministic, rule-based theme name.
+- Draft one FAQ entry (question, answer, resolution steps, escalation guidance) per theme via Gemini, grounded in that theme's actual ticket resolutions.
 - Show ticket counts per theme and which tickets belong to each.
 - Persist the latest batch and its FAQs so a page reload doesn't lose them.
 

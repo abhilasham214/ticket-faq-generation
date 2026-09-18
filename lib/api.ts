@@ -1,15 +1,32 @@
 export interface Faq {
   question: string;
   answer: string;
+  resolution_steps: string[];
+  escalation: string;
+}
+
+export interface TicketSummary {
+  ticket_id: string;
+  title: string;
+  resolution: string;
 }
 
 export interface Cluster {
   cluster_id: number;
-  theme_title: string;
+  theme: string;
+  ai_named: boolean;
+  discovered_keywords: string[];
   ticket_count: number;
+  keywords: string[];
   ticket_ids: string[];
-  top_terms: string[];
+  tickets: TicketSummary[];
   faq: Faq;
+}
+
+export interface Category {
+  id: string;
+  label: string;
+  keywords: string[];
 }
 
 export interface GenerateResponse {
@@ -44,6 +61,19 @@ export async function generateFaqs(file: File): Promise<GenerateResponse> {
   const res = await fetch("/api/faqs/generate", {
     method: "POST",
     body: formData,
+  });
+
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorDetail(res));
+  }
+  return res.json();
+}
+
+export async function addCustomCategory(label: string, keywords: string[]): Promise<Category> {
+  const res = await fetch("/api/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label, keywords }),
   });
 
   if (!res.ok) {

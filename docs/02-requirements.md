@@ -29,9 +29,9 @@ As a support lead, I can reload the page and still see the last generated themes
 
 ## Prioritization for the timebox
 
-Must-have (built): CSV upload, algorithmic clustering into 3-5 themes, one Gemini-drafted FAQ per theme with a template fallback, ticket counts, persistence across reload, a Postman-covered API, unit + integration tests.
+Must-have (built): CSV upload, algorithmic clustering into recurring themes with deterministic rule-based naming, one Gemini-drafted FAQ per theme (with resolution steps and escalation guidance) and a template fallback, ticket counts and full source-ticket traceability per theme, a Postman-covered API, unit + integration tests.
 
-Should-have, cut for time: in-UI FAQ editing before "publishing," a way to re-run clustering on an incrementally larger ticket set instead of replacing the whole batch, richer clustering diagnostics (e.g. showing the silhouette score to the user).
+Should-have, cut for time: in-UI FAQ editing before "publishing," a way to re-run clustering on an incrementally larger ticket set instead of replacing the whole batch, richer clustering diagnostics (e.g. showing per-ticket similarity scores in the UI, not just the API response).
 
 Could-have, deliberately out of scope: authentication/multi-tenant accounts, direct helpdesk API ingestion (Zendesk/Jira/etc.) instead of CSV, historical run comparison.
 

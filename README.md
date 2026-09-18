@@ -1,6 +1,6 @@
 # Knowledge Base FAQ Auto Builder
 
-Upload resolved support tickets, cluster them into 3-5 recurring issue themes (TF-IDF + KMeans), and draft a practical FAQ entry per theme with Gemini - grounded in the actual ticket resolutions, with a ticket count per theme.
+Upload resolved support tickets, cluster them into recurring issue themes (TF-IDF + cosine-similarity clustering, no LLM involved), and draft a practical FAQ entry per theme with Gemini - grounded in the actual ticket resolutions, with full source-ticket traceability per theme.
 
 See `docs/` for the full problem statement, requirements, architecture rationale, build process, and testing strategy.
 
@@ -9,8 +9,9 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 - **Frontend**: Next.js (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI, deployed as a Vercel Python serverless function (`api/index.py`)
 - **Storage**: none - stateless. One request in (a CSV), one response out (clusters + FAQs); nothing is persisted server-side.
-- **Clustering**: scikit-learn (TF-IDF + KMeans, auto-picks k in [3,5] by silhouette score)
-- **FAQ drafting**: Gemini (`google-genai`), one call per cluster, with a deterministic template fallback
+- **Clustering**: TF-IDF + cosine similarity via scikit-learn's agglomerative clustering (average linkage, fixed distance threshold - no chosen cluster count), boosted by a small curated support-domain keyword taxonomy so same-topic tickets with different wording still group together
+- **Cluster naming**: deterministic, rule-based (same domain taxonomy) - no LLM
+- **FAQ drafting**: Gemini (`google-genai`), a single batched call for all clusters in one generate request, with a deterministic template fallback - the only place an LLM is used
 
 ## Project layout
 
@@ -19,7 +20,8 @@ app/                  Next.js pages (App Router)
 components/           FaqGenerator, ClusterCard, shadcn/ui primitives
 lib/api.ts            Typed fetch wrapper for the backend API
 api/index.py          FastAPI app - the single POST /api/faqs/generate route (+ /api/health)
-api/_lib/             schemas, csv_ingest, clustering, faq_drafting
+api/_lib/             schemas, csv_ingest, clustering, cluster_naming, domain_categories,
+                      text_preprocessing, faq_drafting
 data/sample_tickets.csv   20 synthetic resolved tickets for the demo
 tests/unit/           Isolated module tests (Gemini mocked)
 tests/integration/    FastAPI TestClient, full request/response cycle
@@ -34,13 +36,15 @@ Two supported ways to run it locally:
 
 ### Option A - `next dev` + `uvicorn` (no Vercel login required)
 
+Requires **Python 3.10+** (the `google-genai` package uses type-hint syntax that fails to import on 3.9). If your default `python` resolves to an older version, point the venv creation at a newer interpreter explicitly (e.g. `py -3.13 -m venv .venv` on Windows with the Python Launcher, or `python3.11 -m venv .venv` on macOS/Linux).
+
 ```bash
 npm install
 python -m venv .venv && .venv/Scripts/activate   # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 
 # terminal 1
-uvicorn api.index:app --reload --port 8000
+uvicorn api.index:app --reload --port 8000 --env-file .env.local   # --env-file is optional, only needed for GEMINI_API_KEY
 
 # terminal 2
 npm run dev
@@ -61,7 +65,11 @@ vercel dev
 ### First run through the app
 
 1. Open the app, choose `data/sample_tickets.csv`, click "Generate FAQs".
-2. Confirm 3-5 theme cards appear, ticket counts sum to 20, and each FAQ answer reads as grounded in that theme's tickets (login/password, billing, API/rate-limits, data export/import, email/notifications).
+2. Confirm the summary bar reads "20 Tickets | 5 Themes | 5 FAQs", and the 5 theme cards are: *Password Reset & Account Recovery*, *Billing & Duplicate Charge Issues*, *API Authentication & Rate Limit Issues*, *Data Export & Import Issues*, and *Email & Notification Delivery Issues* - each with 4 tickets, keyword badges, a grounded Q&A with numbered resolution steps, and a "Show source tickets" disclosure listing the 4 contributing tickets.
+
+## CSV format
+
+Required columns (case-insensitive): an identifier (`id`, `ticket_id`, or `external_id`), a title (`subject` or `title`), and `resolution`. `description` is optional supporting context. Rows missing any required value are skipped; at least 3 usable tickets are required overall so there's enough signal to detect a recurring theme. See `data/sample_tickets.csv` for a working example.
 
 ## Environment variables
 

@@ -15,7 +15,8 @@
         │  serverless function      │
         │  (api/index.py)           │
         │  - CSV parse              │
-        │  - TF-IDF + KMeans        │
+        │  - TF-IDF + cosine sim.   │
+        │    clustering + naming    │
         │  - Gemini FAQ drafting    │
         └─────────────┬─────────────┘
                        │
@@ -35,13 +36,20 @@ The app is stateless: there is no database. A single request (`POST /api/faqs/ge
 - **Next.js (App Router) + TypeScript + Tailwind + shadcn/ui** — chosen because the goal was to demonstrate a proper frontend, not a notebook. shadcn/ui gives accessible primitives (Card, Badge, Collapsible, Alert) without a heavy component-library dependency.
 - **FastAPI, as a Vercel Python serverless function** — Python was the natural choice for the clustering step (scikit-learn), and FastAPI gives typed request/response models (Pydantic) essentially for free, which pays off directly in the Postman/pytest contract tests.
 - **No database** — at demo scale (one CSV, one generate call), there's nothing that needs to outlive a single request. Skipping persistence removes an entire class of setup (provisioning, migrations, connection pooling under serverless cold starts) for no loss of functionality the brief asked for.
-- **scikit-learn (TF-IDF + KMeans)** — deliberately *not* an LLM call for clustering. At 15-20 tickets, TF-IDF + KMeans with a silhouette-score-based choice of k is cheap, deterministic, and testable; an LLM would be non-deterministic and harder to unit test.
-- **Gemini (`google-genai`)** — used only where an LLM adds real value: turning a cluster of raw ticket text into a well-phrased question/answer. Free tier keeps the demo cost-free.
+- **TF-IDF + cosine similarity, not KMeans** — the first version picked a cluster count `k` in `[3,5]` via silhouette score, which forces every ticket into one of a fixed number of buckets even when the data doesn't actually split that way (it was visibly wrong: an SSO ticket and an unsubscribe-link ticket landed in the same cluster because *some* k needed a home for both). The current approach never chooses a `k` up front - see `api/_lib/clustering.py`.
+- **Domain-category keyword tagging** — plain TF-IDF on short, differently-worded tickets is sparse: two tickets about the same real-world issue ("card declined" vs. "duplicate invoice charge") often share almost no literal words. `api/_lib/domain_categories.py` is a small curated keyword taxonomy (auth, billing, api, data, email) used to tag matching tickets with a synthetic shared token before vectorizing - still plain keyword matching, not an embedding model, but it bridges vocabulary gaps within the same support domain. Tuning notes and the empirical case for this are in `clustering.py`'s module docstring.
+- **Rule-based cluster naming, no LLM** — `api/_lib/cluster_naming.py` names a cluster from its own top TF-IDF terms via the same domain taxonomy plus a few sub-rules, so a name like "Billing & Duplicate Charge Issues" is always traceable to specific words that were actually present, never a model's guess.
+- **Gemini (`google-genai`)** — used for exactly one job: drafting the FAQ (question, answer, resolution steps, escalation guidance) for an already-formed, already-named cluster. Free tier keeps the demo cost-free.
 
 ## Components and data flow
 
-1. **Generate** (`POST /api/faqs/generate`, multipart CSV upload): `csv_ingest.py` validates and parses the CSV into ticket rows. `clustering.py` vectorizes all of them with TF-IDF, tries `k` in `[3,5]`, and keeps whichever `k` gets the best silhouette score. For each resulting cluster, `faq_drafting.py` calls Gemini with that cluster's ticket text and top TF-IDF terms, asking for a small JSON object (`theme_title`, `question`, `answer`). The response is assembled and returned directly — nothing is written to disk or a database.
-2. **Frontend**: `FaqGenerator` drives the whole flow — pick a CSV, click "Generate FAQs", get clusters back in one round trip; `ClusterCard` renders each theme, with ticket IDs behind a collapsible disclosure.
+1. **Generate** (`POST /api/faqs/generate`, multipart CSV upload):
+   - `csv_ingest.py` validates and parses the CSV into ticket rows (requires an id, a subject/title, and a resolution per row; at least 3 usable tickets total).
+   - `clustering.py` builds a TF-IDF matrix (title weighted 2x, resolution 1x, matched domain-category tags repeated as a bridging signal), then runs cosine-distance agglomerative clustering with *average* linkage and a fixed distance threshold - clusters emerge from the similarity structure, not a chosen count. Every cluster carries its member tickets, top keywords, and similarity diagnostics.
+   - `cluster_naming.py` turns each cluster's top keywords into a human-readable theme name via the same domain taxonomy - fully deterministic, no LLM involved.
+   - `faq_drafting.py` makes a single Gemini call for the whole batch, with every cluster's theme, keywords, and member tickets' title/description/resolution in one prompt, asking for a JSON array of `{cluster_index, question, answer, resolution_steps, escalation}` objects (one per cluster, matched back up by `cluster_index`). Batching avoids making N separate Gemini requests per generate call, which was easy to rate-limit on the free API tier. The response is validated per-entry; any failure (no API key, network error, malformed JSON, wrong entry count, a bad `cluster_index`, missing fields) falls back to a deterministic template built from each cluster's own resolutions, for every cluster in the batch.
+   - The response is assembled and returned directly - nothing is written to disk or a database.
+2. **Frontend**: `FaqGenerator` drives the whole flow - pick a CSV, click "Generate FAQs", get clusters back in one round trip; `ClusterCard` renders each theme's keywords, FAQ, numbered resolution steps, and escalation guidance, with the full list of source tickets (id, title, resolution) behind a "Show source tickets" disclosure for traceability.
 
 ## Security, scalability, usability tradeoffs (prototype-appropriate)
 

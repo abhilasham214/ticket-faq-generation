@@ -36,5 +36,10 @@ def test_full_round_trip_against_live_instance():
         )
     assert generate.status_code == 200
     body = generate.json()
-    assert 3 <= len(body["clusters"]) <= 5
-    assert body["total_tickets"] > 0
+    assert len(body["clusters"]) == 5
+    assert body["total_tickets"] == 20
+    for cluster in body["clusters"]:
+        assert cluster["theme"]
+        assert cluster["faq"]["question"]
+        assert cluster["faq"]["answer"]
+        assert cluster["tickets"]

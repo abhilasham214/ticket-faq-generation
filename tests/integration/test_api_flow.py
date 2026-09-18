@@ -129,3 +129,32 @@ def test_generate_rejects_too_few_tickets(client):
     )
     assert res.status_code == 400
     assert res.status_code != 500
+
+
+def test_ask_about_ticket_returns_503_when_gemini_not_configured(client):
+    """The client fixture strips GEMINI_API_KEY, so this always hits the
+    "investigation unavailable" path - there's no deterministic fallback for
+    an open-ended question, so it must 503 rather than fake a 200 answer."""
+    res = client.post(
+        "/api/tickets/ask",
+        json={
+            "title": "API returns 429 errors during normal usage",
+            "description": "",
+            "resolution": "Fixed the rate limiter to key on (api_key, endpoint).",
+            "question": "What was the root cause?",
+        },
+    )
+    assert res.status_code == 503
+
+
+def test_ask_about_ticket_rejects_empty_question(client):
+    res = client.post(
+        "/api/tickets/ask",
+        json={
+            "title": "API returns 429 errors during normal usage",
+            "description": "",
+            "resolution": "Fixed the rate limiter.",
+            "question": "   ",
+        },
+    )
+    assert res.status_code == 400

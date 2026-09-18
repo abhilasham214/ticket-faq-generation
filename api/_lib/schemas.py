@@ -13,6 +13,7 @@ class FaqOut(BaseModel):
 class TicketSummary(BaseModel):
     ticket_id: str
     title: str
+    description: str = ""
     resolution: str
 
 
@@ -50,3 +51,14 @@ class CategoryOut(BaseModel):
     id: str
     label: str
     keywords: List[str]
+
+
+class TicketAskIn(BaseModel):
+    title: str
+    description: str = ""
+    resolution: str
+    question: str
+
+
+class TicketAskOut(BaseModel):
+    answer: str

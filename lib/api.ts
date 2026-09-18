@@ -8,6 +8,7 @@ export interface Faq {
 export interface TicketSummary {
   ticket_id: string;
   title: string;
+  description: string;
   resolution: string;
 }
 
@@ -80,6 +81,24 @@ export async function getLatestFaqs(): Promise<GenerateResponse> {
 
 export async function generateFaqsFromSample(): Promise<GenerateResponse> {
   const res = await fetch("/api/faqs/generate/sample", { method: "POST" });
+
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorDetail(res));
+  }
+  return res.json();
+}
+
+export async function askAboutTicket(ticket: TicketSummary, question: string): Promise<{ answer: string }> {
+  const res = await fetch("/api/tickets/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: ticket.title,
+      description: ticket.description,
+      resolution: ticket.resolution,
+      question,
+    }),
+  });
 
   if (!res.ok) {
     throw new ApiError(res.status, await parseErrorDetail(res));

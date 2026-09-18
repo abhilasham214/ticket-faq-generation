@@ -49,7 +49,7 @@ Carried over from `03-architecture.md` and what's actually been built since:
 
 | # | Feature | Value | Effort | Needs Gemini? | Needs persistence? |
 |---|---|---|---|---|---|
-| 1 | Ask-about-this-theme (grounded Q&A) | High | Medium | Yes, on-demand | No (stateless per question) |
+| 1 | Ask-about-a-ticket (grounded Q&A) — **built** | High | Medium | Yes, on-demand | No (stateless per question) |
 | 2 | Similar/duplicate ticket detection | High | Medium | No (reuses TF-IDF) | No |
 | 3 | Global search (themes/FAQs/tickets/keywords) | High | Low | No | No |
 | 4 | New-ticket -> related FAQ lookup | High | Medium | No (reuses #2 + #3) | No |
@@ -67,27 +67,32 @@ disproportionate to what a resolved-ticket-text corpus actually calls for.
 
 ## Feature specs
 
-### 1. Ask-about-this-theme (grounded Q&A)
+### 1. Ask-about-a-ticket (grounded Q&A) — built
 
-The centerpiece: pick a theme, ask a free-text question, get an answer
-grounded only in that theme's member tickets, with ticket-ID citations.
+Built scoped to one ticket at a time rather than a whole theme (the
+original idea below) - a "Discuss" toggle per source ticket, not a single
+chat per theme:
 
-- **API**: `POST /api/themes/{cluster_id}/ask` - but since clusters aren't
-  persisted server-side today, the request body carries the theme's own
-  tickets back (the frontend already has them from the last `generate`
-  response), e.g. `{ "question": str, "tickets": [...] }`. No new storage;
-  the endpoint is a pure function of what it's given, like
-  `faq_drafting.py` today.
-- **Backend**: new `api/_lib/ticket_qa.py`, same shape as
-  `faq_drafting.py` - a prompt built from the question + the theme's
-  tickets only, instructed to answer only from that evidence, cite ticket
-  IDs, and explicitly say "the tickets don't cover this" when they don't
-  (see #9). On any Gemini failure, return a clear "investigation
-  unavailable right now" response - there's no safe deterministic template
-  for an open-ended question, so the honest fallback is "can't answer,"
-  not a guess.
-- **Frontend**: a small chat-style panel inside `ClusterCard`'s expanded
-  state, reusing the "Show source tickets" disclosure's tickets as context.
+- **API**: `POST /api/tickets/ask`, body `{ title, description, resolution,
+  question }` - the caller sends the ticket's own fields back (the frontend
+  already has them from the last generate response), same stateless
+  pattern as everywhere else. No `cluster_id`/theme context is sent or
+  used.
+- **Backend**: `api/_lib/ticket_qa.py`, same shape as `faq_drafting.py` -
+  a prompt built from the question + that one ticket's subject/description/
+  resolution only, instructed to answer only from that evidence and say so
+  plainly when it doesn't cover the question (see #9). Any Gemini failure
+  (no key, network error, malformed response) is a 503 - there's no safe
+  deterministic template for an open-ended question, so the honest fallback
+  is "investigation unavailable," not a guess.
+- **Frontend**: `components/ticket-chat.tsx`, opened via a "Discuss" button
+  next to each ticket in `ClusterCard`'s "Show source tickets" list.
+
+Original idea, not built: a single chat per *theme* (all its tickets as
+context, with ticket-ID citations in the answer) instead of per-ticket.
+Worth revisiting if per-ticket chats turn out too narrow in practice -
+`ticket_qa.py`'s prompt/parsing shape would extend cleanly to a list of
+tickets instead of one.
 
 ### 2. Similar/duplicate ticket detection
 

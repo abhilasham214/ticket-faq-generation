@@ -1,5 +1,10 @@
+"use client";
+
+import { useState } from "react";
+
 import type { Cluster } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,12 +17,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TicketChat } from "@/components/ticket-chat";
 
 interface ClusterCardProps {
   cluster: Cluster;
 }
 
 export function ClusterCard({ cluster }: ClusterCardProps) {
+  const [openChatId, setOpenChatId] = useState<string | null>(null);
+
   return (
     <Card>
       <CardHeader>
@@ -83,15 +91,28 @@ export function ClusterCard({ cluster }: ClusterCardProps) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <ul className="mt-2 flex flex-col gap-2">
-              {cluster.tickets.map((t) => (
-                <li key={t.ticket_id} className="rounded-md border border-border p-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{t.ticket_id}</Badge>
-                    <span className="font-medium">{t.title}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-muted-foreground">{t.resolution}</p>
-                </li>
-              ))}
+              {cluster.tickets.map((t) => {
+                const isOpen = openChatId === t.ticket_id;
+                return (
+                  <li key={t.ticket_id} className="rounded-md border border-border p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{t.ticket_id}</Badge>
+                        <span className="font-medium">{t.title}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setOpenChatId(isOpen ? null : t.ticket_id)}
+                      >
+                        {isOpen ? "Close" : "Discuss"}
+                      </Button>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-muted-foreground">{t.resolution}</p>
+                    {isOpen && <TicketChat ticket={t} />}
+                  </li>
+                );
+              })}
             </ul>
           </CollapsibleContent>
         </Collapsible>

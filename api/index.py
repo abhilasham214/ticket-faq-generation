@@ -18,8 +18,11 @@ from ._lib.schemas import (
     FaqOut,
     GenerateResponse,
     HealthResponse,
+    TicketAskIn,
+    TicketAskOut,
     TicketSummary,
 )
+from ._lib.ticket_qa import ask_about_ticket
 from ._lib.ticket_store import get_seeded_tickets
 
 app = FastAPI(title="Ticket FAQ Auto Builder API")
@@ -104,6 +107,7 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
                     TicketSummary(
                         ticket_id=t["external_id"],
                         title=t["subject"],
+                        description=t.get("description", ""),
                         resolution=t["resolution"],
                     )
                     for t in entry["tickets"]
@@ -186,3 +190,30 @@ def add_category(payload: CategoryIn) -> CategoryOut:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return CategoryOut(**entry)
+
+
+@app.post("/api/tickets/ask", response_model=TicketAskOut)
+def ask_about_ticket_endpoint(payload: TicketAskIn) -> TicketAskOut:
+    """"Discuss" a single source ticket - a free-text question answered from
+    only that ticket's own subject/description/resolution (the caller sends
+    the ticket's own fields back, same as everywhere else in this stateless
+    app - nothing is looked up server-side). 503s if Gemini isn't configured
+    or the call fails - there's no safe deterministic fallback for an
+    open-ended question, so this doesn't pretend to answer.
+    """
+    if not payload.question.strip():
+        raise HTTPException(status_code=400, detail="question must not be empty.")
+
+    ticket = {
+        "title": payload.title,
+        "description": payload.description,
+        "resolution": payload.resolution,
+    }
+    result = ask_about_ticket(ticket, payload.question)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Investigation isn't available right now. Make sure GEMINI_API_KEY is set, or try again in a moment.",
+        )
+
+    return TicketAskOut(answer=result["answer"])

@@ -8,7 +8,7 @@ See `docs/` for the full problem statement, requirements, architecture rationale
 
 - **Frontend**: Next.js (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI, deployed as a Vercel Python serverless function (`api/index.py`)
-- **Storage**: none for ticket data - stateless. One request in (a CSV), one response out (clusters + FAQs); nothing is persisted server-side. Two narrow exceptions live in Vercel KV: user-approved custom categories, and a seeded demo ticket set for the "Try sample data" button (see `docs/03-architecture.md`).
+- **Storage**: no database. Each generate call parses, clusters, and drafts in one pass. A few narrow exceptions live in Vercel KV: user-approved custom categories, a seeded demo ticket set for the "Try sample data" button, and the most recently generated result so a fresh visit shows what was last generated instead of an empty page (see `docs/03-architecture.md`).
 - **Clustering**: TF-IDF + cosine similarity via scikit-learn's agglomerative clustering (average linkage, fixed distance threshold - no chosen cluster count), boosted by a small curated support-domain keyword taxonomy so same-topic tickets with different wording still group together
 - **Cluster naming**: deterministic, rule-based (same domain taxonomy) - no LLM
 - **FAQ drafting**: Gemini (`google-genai`), a single batched call for all clusters in one generate request, with a deterministic template fallback - the only place an LLM is used
@@ -64,8 +64,9 @@ vercel dev
 
 ### First run through the app
 
-1. Open the app, choose `data/sample_tickets.csv`, click "Generate FAQs".
-2. Confirm the summary bar reads "20 Tickets | 5 Themes | 5 FAQs", and the 5 theme cards are: *Password Reset & Account Recovery*, *Billing & Duplicate Charge Issues*, *API Authentication & Rate Limit Issues*, *Data Export & Import Issues*, and *Email & Notification Delivery Issues* - each with 4 tickets, keyword badges, a grounded Q&A with numbered resolution steps, and a "Show source tickets" disclosure listing the 4 contributing tickets.
+1. Open the app - it loads `GET /api/faqs/latest` automatically, so the 5-theme sample result (or whatever was last generated, if you've already used the app before) is showing before you upload anything.
+2. Confirm the summary bar reads "20 Tickets | 5 Themes | 5 FAQs", and the 5 theme tabs are: *Password Reset & Account Recovery*, *Billing & Duplicate Charge Issues*, *API Authentication & Rate Limit Issues*, *Data Export & Import Issues*, and *Email & Notification Delivery Issues*. Click between tabs - each shows that theme's keyword badges, a grounded Q&A with numbered resolution steps, and a "Show source tickets" disclosure listing its 4 contributing tickets.
+3. Upload your own CSV (or `data/sample_tickets.csv` again) and click "Generate FAQs" - the new result replaces the tabs, and becomes what loads on the next visit.
 
 ## CSV format
 

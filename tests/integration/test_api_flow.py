@@ -49,6 +49,18 @@ def test_generate_from_sample_endpoint_matches_uploading_the_same_csv(client):
     assert sum(c["ticket_count"] for c in body["clusters"]) == 20
 
 
+def test_latest_endpoint_falls_back_to_seeded_sample_when_nothing_generated_yet(client):
+    """With no KV configured (the test client fixture strips those env vars)
+    and nothing generated yet this test run, GET /api/faqs/latest should
+    still return the seeded sample set rather than an empty/error response -
+    "the app never opens empty" contract."""
+    res = client.get("/api/faqs/latest")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total_tickets"] == 20
+    assert len(body["clusters"]) == 5
+
+
 def test_every_cluster_traces_back_to_its_source_tickets(client, sample_csv_bytes):
     res = client.post(
         "/api/faqs/generate",

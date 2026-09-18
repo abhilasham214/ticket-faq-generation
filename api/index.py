@@ -10,6 +10,7 @@ from ._lib.clustering import ClusteringError, cluster_tickets
 from ._lib.csv_ingest import CsvValidationError, parse_tickets_csv
 from ._lib.domain_categories import merged_categories
 from ._lib.faq_drafting import draft_faqs_for_clusters
+from ._lib.result_store import get_latest_result, save_latest_result
 from ._lib.schemas import (
     CategoryIn,
     CategoryOut,
@@ -37,9 +38,11 @@ def health() -> HealthResponse:
 
 
 def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateResponse:
-    """The full parse-to-FAQs pipeline, shared by the CSV-upload endpoint and
-    the sample-data endpoint below - the only difference between them is
-    where `tickets` comes from.
+    """The full parse-to-FAQs pipeline, shared by every endpoint that produces
+    a GenerateResponse - the only difference between them is where `tickets`
+    comes from. Every call's result is saved as "the latest result" (best
+    effort - see result_store.py), so GET /api/faqs/latest can hand it back
+    on the next visit instead of the app opening empty.
     """
     # User-approved custom categories (see POST /api/categories) get the same
     # tag-bridging boost and curated naming as the 5 built-in domains, so a
@@ -114,7 +117,26 @@ def _generate_response_for_tickets(tickets: List[Dict[str, Any]]) -> GenerateRes
             )
         )
 
-    return GenerateResponse(clusters=result, total_tickets=len(tickets))
+    response = GenerateResponse(clusters=result, total_tickets=len(tickets))
+    save_latest_result(response.model_dump())
+    return response
+
+
+@app.get("/api/faqs/latest", response_model=GenerateResponse)
+def get_latest_faqs() -> GenerateResponse:
+    """What the homepage loads by default: the last generated result if one
+    exists (from an uploaded CSV or the sample button, from any visitor -
+    there's no per-user session, see result_store.py), otherwise the seeded
+    sample set generated fresh, so the app never opens empty.
+    """
+    stored = get_latest_result()
+    if stored is not None:
+        return GenerateResponse(**stored)
+
+    tickets = get_seeded_tickets()
+    if not tickets:
+        raise HTTPException(status_code=503, detail="No data is available yet.")
+    return _generate_response_for_tickets(tickets)
 
 
 @app.post("/api/faqs/generate", response_model=GenerateResponse)
